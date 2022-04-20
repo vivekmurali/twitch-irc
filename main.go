@@ -5,13 +5,18 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"strings"
 	"sync"
+	"syscall"
+	"time"
 
 	ws "github.com/gorilla/websocket"
 	"github.com/joho/godotenv"
 	. "github.com/logrusorgru/aurora"
 )
+
+var channel string
 
 type environment struct {
 	conn *ws.Conn
@@ -21,19 +26,24 @@ func init() {
 	godotenv.Load()
 }
 
-func connect() environment {
+func connect() (*environment, error) {
 	c, _, err := ws.DefaultDialer.Dial("ws://irc-ws.chat.twitch.tv:80", nil)
-	checkErr(err)
-	return environment{c}
+	// checkErr(err)
+	if err != nil {
+		return nil, err
+	}
+	return &environment{c}, nil
 }
 
-func initChat(env environment) {
+func initChat(env *environment) {
 
 	var name string
 	if len(os.Args) < 2 {
 		name = "JOIN #dyggaming\r\n"
+		channel = "dyggaming"
 	} else {
 		name = fmt.Sprintf("JOIN #%s \r\n", os.Args[1])
+		channel = os.Args[1]
 	}
 
 	authCode := os.Getenv("TWITCH_TOKEN")
@@ -44,7 +54,33 @@ func initChat(env environment) {
 }
 
 func main() {
-	e := connect()
+	// var count = 1
+	// e, err := connect()
+	// if err != nil && count <= 3 {
+	// 	time.Sleep(time.Second * 5)
+	// 	count++
+	// }
+
+	var e *environment
+	var err error
+
+	for i := 0; i < 3; i++ {
+		e, err = connect()
+		if err != nil {
+			time.Sleep(time.Second * 5)
+			continue
+		}
+	}
+
+	c := make(chan os.Signal)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		e.conn.WriteMessage(ws.TextMessage, []byte("PART #"+channel+"\r\n"))
+		e.conn.Close()
+	}()
+
+	defer e.conn.Close()
 	var wg sync.WaitGroup
 	go func() {
 		wg.Add(1)
@@ -55,7 +91,7 @@ func main() {
 	wg.Wait()
 }
 
-func readMessages(e environment) {
+func readMessages(e *environment) {
 	for {
 		_, msg, err := e.conn.ReadMessage()
 		checkErr(err)
