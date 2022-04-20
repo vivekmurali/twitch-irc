@@ -10,6 +10,7 @@ import (
 
 	ws "github.com/gorilla/websocket"
 	"github.com/joho/godotenv"
+	. "github.com/logrusorgru/aurora"
 )
 
 type environment struct {
@@ -73,7 +74,7 @@ func readMessages(e environment) {
 			fmt.Println(err)
 			continue
 		}
-		fmt.Printf("%s: %s", msgData.user, msgData.msg)
+		fmt.Printf("%s: %s", Bold(Green(msgData.user)), msgData.msg)
 		// fmt.Printf("%s", msg)
 	}
 
@@ -93,7 +94,6 @@ func parse(msg string) (*message, error) {
 	msgComponents := strings.Split(msg, " ")
 
 	if len(msgComponents) < 3 {
-		// fmt.Printf(msg)
 		if msgComponents[0] == "PING" {
 			return nil, errors.New("PING")
 		}
@@ -109,7 +109,6 @@ func parse(msg string) (*message, error) {
 	}
 	userMsg := strings.Join(msgComponents[3:], " ")
 
-	//TODO fix where beginning prints this error message
 	username, _, ok := strings.Cut(msgComponents[0], "!")
 	if !ok {
 		return nil, errors.New("ERROR with cut string")
